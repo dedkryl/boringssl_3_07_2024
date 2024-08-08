@@ -23,49 +23,36 @@ import (
 	"debug/elf"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
-func checkImportedLibraries(path string) bool {
+func checkImportedLibraries(path string) {
 	file, err := elf.Open(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening %s: %s\n", path, err)
-		return false
+		os.Exit(1)
 	}
 	defer file.Close()
 
 	libs, err := file.ImportedLibraries()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading %s: %s\n", path, err)
-		return false
+		os.Exit(1)
 	}
 
-	allowCpp := filepath.Base(path) == "libssl.so"
 	for _, lib := range libs {
-		if lib == "libc.so.6" || lib == "libcrypto.so" || lib == "libpthread.so.0" || lib == "libgcc_s.so.1" {
-			continue
+		if lib != "libc.so.6" && lib != "libcrypto.so" && lib != "libpthread.so.0" {
+			fmt.Printf("Invalid dependency for %s: %s\n", path, lib)
+			fmt.Printf("All dependencies:\n")
+			for _, lib := range libs {
+				fmt.Printf("    %s\n", lib)
+			}
+			os.Exit(1)
 		}
-		if allowCpp && lib == "libstdc++.so.6" {
-			continue
-		}
-		fmt.Printf("Invalid dependency for %s: %s\n", path, lib)
-		fmt.Printf("All dependencies:\n")
-		for _, lib := range libs {
-			fmt.Printf("    %s\n", lib)
-		}
-		return false
 	}
-	return true
 }
 
 func main() {
-	ok := true
 	for _, path := range os.Args[1:] {
-		if !checkImportedLibraries(path) {
-			ok = false
-		}
-	}
-	if !ok {
-		os.Exit(1)
+		checkImportedLibraries(path)
 	}
 }

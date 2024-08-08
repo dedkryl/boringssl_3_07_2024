@@ -16,8 +16,6 @@ bar:
 	call	.Lfoo_local_target
 # WAS jmp foo
 	jmp	.Lfoo_local_target
-# WAS notrack jmp foo
-	notrack	jmp	.Lfoo_local_target
 # WAS jbe foo
 	jbe	.Lfoo_local_target
 # WAS jne foo
@@ -28,8 +26,6 @@ bar:
 	call	bcm_redirector_memcpy
 # WAS jmp memcpy@PLT
 	jmp	bcm_redirector_memcpy
-# WAS notrack jmp memcpy@PLT
-	notrack	jmp	bcm_redirector_memcpy
 # WAS jbe memcpy@PLT
 	jbe	bcm_redirector_memcpy
 
@@ -38,8 +34,6 @@ bar:
 	call	.Lfoo_local_target
 # WAS jmp foo@PLT
 	jmp	.Lfoo_local_target
-# WAS notrack jmp foo@PLT
-	notrack	jmp	.Lfoo_local_target
 # WAS jbe foo@PLT
 	jbe	.Lfoo_local_target
 
@@ -71,11 +65,6 @@ bar:
 1:
 
 	jmp 1b
-2:
-
-
-	.quad 2b - 1b
-	.quad 2b - .L2
 	# References to local labels are rewrittenn in subsequent files.
 .Llocal_label_BCM_1:
 

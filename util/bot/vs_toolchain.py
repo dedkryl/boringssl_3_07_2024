@@ -12,7 +12,6 @@ import sys
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-toolchain_dir = os.path.join(script_dir, 'win_toolchain')
 json_data_file = os.path.join(script_dir, 'win_toolchain.json')
 
 
@@ -73,9 +72,8 @@ def _GetDesiredVsToolchainHashes(version):
     # with ARM64 libraries and UWP support.
     return ['0b5ee4d2b1']
   if version == '2022':
-    # VS 2022 17.9.2 with 10.0.22621.2428 SDK with ARM64 libraries and UWP
-    # support.
-    return ['7393122652']
+    # VS 2022 17.4 with 10.0.22621.0 SDK with ARM64 libraries and UWP support.
+    return ['27370823e7']
   raise Exception('Unsupported VS version %s' % version)
 
 
@@ -92,7 +90,6 @@ def Update(version):
                   'win_toolchain',
                   'get_toolchain_if_necessary.py'),
       '--output-json', json_data_file,
-      '--toolchain-dir', toolchain_dir,
     ] + _GetDesiredVsToolchainHashes(version)
   subprocess.check_call(get_toolchain_args)
   return 0

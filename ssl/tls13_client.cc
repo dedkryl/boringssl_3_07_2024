@@ -107,13 +107,9 @@ static bool parse_server_hello_tls13(const SSL_HANDSHAKE *hs,
   if (!ssl_parse_server_hello(out, out_alert, msg)) {
     return false;
   }
-  uint16_t server_hello_version = TLS1_2_VERSION;
-  if (SSL_is_dtls(hs->ssl)) {
-    server_hello_version = DTLS1_2_VERSION;
-  }
   // The RFC8446 version of the structure fixes some legacy values.
   // Additionally, the session ID must echo the original one.
-  if (out->legacy_version != server_hello_version ||
+  if (out->legacy_version != TLS1_2_VERSION ||
       out->compression_method != 0 ||
       !CBS_mem_equal(&out->session_id, hs->session_id, hs->session_id_len) ||
       CBS_len(&out->extensions) == 0) {
@@ -836,17 +832,6 @@ static enum ssl_hs_wait_t do_send_client_encrypted_extensions(
   return ssl_hs_ok;
 }
 
-static bool check_credential(SSL_HANDSHAKE *hs, const SSL_CREDENTIAL *cred,
-                             uint16_t *out_sigalg) {
-  if (cred->type != SSLCredentialType::kX509) {
-    OPENSSL_PUT_ERROR(SSL, SSL_R_UNKNOWN_CERTIFICATE_TYPE);
-    return false;
-  }
-
-  // All currently supported credentials require a signature.
-  return tls1_choose_signature_algorithm(hs, cred, out_sigalg);
-}
-
 static enum ssl_hs_wait_t do_send_client_certificate(SSL_HANDSHAKE *hs) {
   SSL *const ssl = hs->ssl;
 
@@ -874,30 +859,8 @@ static enum ssl_hs_wait_t do_send_client_certificate(SSL_HANDSHAKE *hs) {
     }
   }
 
-  Array<SSL_CREDENTIAL *> creds;
-  if (!ssl_get_credential_list(hs, &creds)) {
-    return ssl_hs_error;
-  }
-
-  if (!creds.empty()) {
-    // Select the credential to use.
-    for (SSL_CREDENTIAL *cred : creds) {
-      ERR_clear_error();
-      uint16_t sigalg;
-      if (check_credential(hs, cred, &sigalg)) {
-        hs->credential = UpRef(cred);
-        hs->signature_algorithm = sigalg;
-        break;
-      }
-    }
-    if (hs->credential == nullptr) {
-      // The error from the last attempt is in the error queue.
-      ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
-      return ssl_hs_error;
-    }
-  }
-
-  if (!tls13_add_certificate(hs)) {
+  if (!ssl_on_certificate_selected(hs) ||
+      !tls13_add_certificate(hs)) {
     return ssl_hs_error;
   }
 
@@ -907,7 +870,7 @@ static enum ssl_hs_wait_t do_send_client_certificate(SSL_HANDSHAKE *hs) {
 
 static enum ssl_hs_wait_t do_send_client_certificate_verify(SSL_HANDSHAKE *hs) {
   // Don't send CertificateVerify if there is no certificate.
-  if (hs->credential == nullptr) {
+  if (!ssl_has_certificate(hs)) {
     hs->tls13_state = state_complete_second_flight;
     return ssl_hs_ok;
   }

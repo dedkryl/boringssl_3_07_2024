@@ -42,10 +42,10 @@ sub ::record_function_hit
     &preprocessor_ifdef("BORINGSSL_DISPATCH_TEST");
     &push("ebx");
     &push("edx");
-    &call(&label("pic_for_function_hit"));
-    &set_label("pic_for_function_hit");
+    &call(&label("pic"));
+    &set_label("pic");
     &blindpop("ebx");
-    &lea("ebx",&DWP("BORINGSSL_function_hit+$index"."-".&label("pic_for_function_hit"),"ebx"));
+    &lea("ebx",&DWP("BORINGSSL_function_hit+$index"."-".&label("pic"),"ebx"));
     &mov("edx", 1);
     &movb(&BP(0, "ebx"), "dl");
     &pop("edx");

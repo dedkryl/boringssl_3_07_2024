@@ -5,10 +5,11 @@
 #ifndef BSSL_PKI_REVOCATION_UTIL_H_
 #define BSSL_PKI_REVOCATION_UTIL_H_
 
-#include <cstdint>
+#include "fillins/openssl_util.h"
+
 #include <optional>
 
-#include <openssl/base.h>
+#include <cstdint>
 
 namespace bssl {
 
@@ -22,10 +23,11 @@ struct GeneralizedTime;
 // differently, returns true if |this_update <= verify_time < next_update|, and
 // |this_update >= verify_time - max_age|.
 [[nodiscard]] OPENSSL_EXPORT bool CheckRevocationDateValid(
-    const der::GeneralizedTime &this_update,
-    const der::GeneralizedTime *next_update, int64_t verify_time_epoch_seconds,
+    const der::GeneralizedTime& this_update,
+    const der::GeneralizedTime* next_update,
+    int64_t verify_time_epoch_seconds,
     std::optional<int64_t> max_age_seconds);
 
-}  // namespace bssl
+}  // namespace net
 
 #endif  // BSSL_PKI_REVOCATION_UTIL_H_

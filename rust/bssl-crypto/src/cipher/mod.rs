@@ -16,9 +16,11 @@
 extern crate alloc;
 
 use crate::{CSlice, CSliceMut};
-use alloc::{vec, vec::Vec};
+use alloc::vec;
+use alloc::vec::Vec;
 use bssl_sys::EVP_CIPHER;
-use core::{ffi::c_int, marker::PhantomData};
+use core::ffi::c_int;
+use core::marker::PhantomData;
 
 /// AES-CTR stream cipher operations.
 pub mod aes_ctr;

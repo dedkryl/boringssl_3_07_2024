@@ -12,7 +12,8 @@ macro(fuzzer name)
     ${name}
     PROPERTIES
     CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES)
+    CXX_STANDARD_REQUIRED YES
+    COMPILE_FLAGS "-D_BORINGSSL_LIBPKI_")
 endmacro()
 
 fuzzer(arm_cpuinfo)

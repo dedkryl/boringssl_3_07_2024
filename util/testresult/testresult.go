@@ -43,31 +43,27 @@ func NewResults() *Results {
 	}
 }
 
-func (t *Results) addResult(name, result, expected string, err error) {
+func (t *Results) addResult(name, result, expected string) {
 	if _, found := t.Tests[name]; found {
 		panic(fmt.Sprintf("duplicate test name %q", name))
 	}
-	r := Result{
+	t.Tests[name] = Result{
 		Actual:       result,
 		Expected:     expected,
 		IsUnexpected: result != expected,
 	}
-	if err != nil {
-		r.Error = err.Error()
-	}
-	t.Tests[name] = r
 	t.NumFailuresByType[result]++
 }
 
 // AddResult records a test result with the given result string. The test is a
 // failure if the result is not "PASS".
-func (t *Results) AddResult(name, result string, err error) {
-	t.addResult(name, result, "PASS", err)
+func (t *Results) AddResult(name, result string) {
+	t.addResult(name, result, "PASS")
 }
 
 // AddSkip marks a test as being skipped. It is not considered a failure.
 func (t *Results) AddSkip(name string) {
-	t.addResult(name, "SKIP", "SKIP", nil)
+	t.addResult(name, "SKIP", "SKIP")
 }
 
 func (t *Results) HasUnexpectedResults() bool {
@@ -97,7 +93,4 @@ type Result struct {
 	Actual       string `json:"actual"`
 	Expected     string `json:"expected"`
 	IsUnexpected bool   `json:"is_unexpected"`
-	// Error is not part of the Chromium test results schema, but is useful for
-	// BoGo output.
-	Error string `json:"error,omitempty"`
 }

@@ -194,7 +194,7 @@ type clientHelloMsg struct {
 	emptyExtensions                          bool
 	pad                                      int
 	compressedCertAlgs                       []uint16
-	delegatedCredential                      []signatureAlgorithm
+	delegatedCredentials                     bool
 	alpsProtocols                            []string
 	alpsProtocolsOld                         []string
 	outerExtensions                          []uint16
@@ -501,15 +501,15 @@ func (m *clientHelloMsg) marshalBody(hello *cryptobyte.Builder, typ clientHelloT
 			body: body.BytesOrPanic(),
 		})
 	}
-	if len(m.delegatedCredential) > 0 {
+	if m.delegatedCredentials {
 		body := cryptobyte.NewBuilder(nil)
 		body.AddUint16LengthPrefixed(func(signatureSchemeList *cryptobyte.Builder) {
-			for _, sigAlg := range m.delegatedCredential {
+			for _, sigAlg := range m.signatureAlgorithms {
 				signatureSchemeList.AddUint16(uint16(sigAlg))
 			}
 		})
 		extensions = append(extensions, extension{
-			id:   extensionDelegatedCredential,
+			id:   extensionDelegatedCredentials,
 			body: body.BytesOrPanic(),
 		})
 	}
@@ -756,7 +756,7 @@ func (m *clientHelloMsg) unmarshal(data []byte) bool {
 	m.alpnProtocols = nil
 	m.extendedMasterSecret = false
 	m.customExtension = ""
-	m.delegatedCredential = nil
+	m.delegatedCredentials = false
 	m.alpsProtocols = nil
 	m.alpsProtocolsOld = nil
 
@@ -1029,10 +1029,11 @@ func (m *clientHelloMsg) unmarshal(data []byte) bool {
 					return false
 				}
 			}
-		case extensionDelegatedCredential:
-			if !parseSignatureAlgorithms(&body, &m.delegatedCredential, false) || len(body) != 0 {
+		case extensionDelegatedCredentials:
+			if len(body) != 0 {
 				return false
 			}
+			m.delegatedCredentials = true
 		case extensionApplicationSettings:
 			var protocols cryptobyte.String
 			if !body.ReadUint16LengthPrefixed(&protocols) || len(body) != 0 {
@@ -1219,11 +1220,7 @@ func (m *serverHelloMsg) marshal() []byte {
 		if m.versOverride != 0 {
 			hello.AddUint16(m.versOverride)
 		} else if vers >= VersionTLS13 {
-			legacyVersion := uint16(VersionTLS12)
-			if m.isDTLS {
-				legacyVersion = VersionDTLS12
-			}
-			hello.AddUint16(legacyVersion)
+			hello.AddUint16(VersionTLS12)
 		} else {
 			hello.AddUint16(m.vers)
 		}
@@ -1320,7 +1317,7 @@ func (m *serverHelloMsg) unmarshal(data []byte) bool {
 	}
 
 	// Parse out the version from supported_versions if available.
-	if vers == VersionTLS12 {
+	if m.vers == VersionTLS12 {
 		extensionsCopy := extensions
 		for len(extensionsCopy) > 0 {
 			var extension uint16
@@ -1926,14 +1923,13 @@ type certificateEntry struct {
 }
 
 type delegatedCredential struct {
-	// https://www.rfc-editor.org/rfc/rfc9345.html#section-4
-	raw              []byte
-	signedBytes      []byte
-	lifetimeSecs     uint32
-	dcCertVerifyAlgo signatureAlgorithm
-	pkixPublicKey    []byte
-	algorithm        signatureAlgorithm
-	signature        []byte
+	// https://tools.ietf.org/html/draft-ietf-tls-subcerts-03#section-3
+	signedBytes            []byte
+	lifetimeSecs           uint32
+	expectedCertVerifyAlgo signatureAlgorithm
+	pkixPublicKey          []byte
+	algorithm              signatureAlgorithm
+	signature              []byte
 }
 
 type certificateMsg struct {
@@ -2033,18 +2029,18 @@ func (m *certificateMsg) unmarshal(data []byte) bool {
 					}
 				case extensionSignedCertificateTimestamp:
 					cert.sctList = []byte(body)
-				case extensionDelegatedCredential:
-					// https://www.rfc-editor.org/rfc/rfc9345.html#section-4
+				case extensionDelegatedCredentials:
+					// https://tools.ietf.org/html/draft-ietf-tls-subcerts-03#section-3
 					if cert.delegatedCredential != nil {
 						return false
 					}
 
 					dc := new(delegatedCredential)
 					origBody := body
-					var dcCertVerifyAlgo, algorithm uint16
+					var expectedCertVerifyAlgo, algorithm uint16
 
 					if !body.ReadUint32(&dc.lifetimeSecs) ||
-						!body.ReadUint16(&dcCertVerifyAlgo) ||
+						!body.ReadUint16(&expectedCertVerifyAlgo) ||
 						!readUint24LengthPrefixedBytes(&body, &dc.pkixPublicKey) ||
 						!body.ReadUint16(&algorithm) ||
 						!readUint16LengthPrefixedBytes(&body, &dc.signature) ||
@@ -2052,9 +2048,8 @@ func (m *certificateMsg) unmarshal(data []byte) bool {
 						return false
 					}
 
-					dc.dcCertVerifyAlgo = signatureAlgorithm(dcCertVerifyAlgo)
+					dc.expectedCertVerifyAlgo = signatureAlgorithm(expectedCertVerifyAlgo)
 					dc.algorithm = signatureAlgorithm(algorithm)
-					dc.raw = origBody
 					dc.signedBytes = []byte(origBody)[:4+2+3+len(dc.pkixPublicKey)]
 					cert.delegatedCredential = dc
 				default:

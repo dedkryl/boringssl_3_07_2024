@@ -554,8 +554,9 @@ TEST(HPKETest, SetupSenderBufferTooSmall) {
       sender_ctx.get(), enc, &enc_len, sizeof(enc),
       EVP_hpke_x25519_hkdf_sha256(), EVP_hpke_hkdf_sha256(),
       EVP_hpke_aes_128_gcm(), public_key_r, sizeof(public_key_r), nullptr, 0));
-  EXPECT_TRUE(
-      ErrorEquals(ERR_get_error(), ERR_LIB_EVP, EVP_R_INVALID_BUFFER_SIZE));
+  uint32_t err = ERR_get_error();
+  EXPECT_EQ(ERR_LIB_EVP, ERR_GET_LIB(err));
+  EXPECT_EQ(EVP_R_INVALID_BUFFER_SIZE, ERR_GET_REASON(err));
   ERR_clear_error();
 }
 
@@ -586,8 +587,9 @@ TEST(HPKETest, SetupRecipientWrongLengthEnc) {
   ASSERT_FALSE(EVP_HPKE_CTX_setup_recipient(
       recipient_ctx.get(), key.get(), EVP_hpke_hkdf_sha256(),
       EVP_hpke_aes_128_gcm(), bogus_enc, sizeof(bogus_enc), nullptr, 0));
-  EXPECT_TRUE(
-      ErrorEquals(ERR_get_error(), ERR_LIB_EVP, EVP_R_INVALID_PEER_KEY));
+  uint32_t err = ERR_get_error();
+  EXPECT_EQ(ERR_LIB_EVP, ERR_GET_LIB(err));
+  EXPECT_EQ(EVP_R_INVALID_PEER_KEY, ERR_GET_REASON(err));
   ERR_clear_error();
 }
 
@@ -601,8 +603,9 @@ TEST(HPKETest, SetupSenderWrongLengthPeerPublicValue) {
       EVP_hpke_x25519_hkdf_sha256(), EVP_hpke_hkdf_sha256(),
       EVP_hpke_aes_128_gcm(), bogus_public_key_r, sizeof(bogus_public_key_r),
       nullptr, 0));
-  EXPECT_TRUE(
-      ErrorEquals(ERR_get_error(), ERR_LIB_EVP, EVP_R_INVALID_PEER_KEY));
+  uint32_t err = ERR_get_error();
+  EXPECT_EQ(ERR_LIB_EVP, ERR_GET_LIB(err));
+  EXPECT_EQ(EVP_R_INVALID_PEER_KEY, ERR_GET_REASON(err));
   ERR_clear_error();
 }
 

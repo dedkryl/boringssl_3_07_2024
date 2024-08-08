@@ -24,8 +24,6 @@
 #include <string>
 #include <vector>
 
-#include <gtest/gtest.h>
-
 #include <openssl/span.h>
 
 #include "../internal.h"
@@ -68,10 +66,6 @@ bool DecodeHex(std::vector<uint8_t> *out, const std::string &in);
 
 // EncodeHex returns |in| encoded in hexadecimal.
 std::string EncodeHex(bssl::Span<const uint8_t> in);
-
-// ErrorEquals asserts that |err| is an error with library |lib| and reason
-// |reason|.
-testing::AssertionResult ErrorEquals(uint32_t err, int lib, int reason);
 
 
 #endif  // OPENSSL_HEADER_CRYPTO_TEST_TEST_UTIL_H

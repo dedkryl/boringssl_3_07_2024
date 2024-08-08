@@ -62,6 +62,7 @@
 #include <openssl/err.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "internal.h"
 
@@ -80,6 +81,7 @@ int X509_REQ_print_fp(FILE *fp, X509_REQ *x) {
 int X509_REQ_print_ex(BIO *bio, X509_REQ *x, unsigned long nmflags,
                       unsigned long cflag) {
   long l;
+  EVP_PKEY *pkey;
   STACK_OF(X509_ATTRIBUTE) *sk;
   char mlch = ' ';
 
@@ -126,12 +128,13 @@ int X509_REQ_print_ex(BIO *bio, X509_REQ *x, unsigned long nmflags,
       goto err;
     }
 
-    const EVP_PKEY *pkey = X509_REQ_get0_pubkey(x);
+    pkey = X509_REQ_get_pubkey(x);
     if (pkey == NULL) {
       BIO_printf(bio, "%12sUnable to load Public Key\n", "");
       ERR_print_errors(bio);
     } else {
       EVP_PKEY_print_public(bio, pkey, 16, NULL);
+      EVP_PKEY_free(pkey);
     }
   }
 

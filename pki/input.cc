@@ -4,42 +4,64 @@
 
 #include "input.h"
 
+#include <algorithm>
+
 #include <openssl/base.h>
 
 namespace bssl::der {
 
-std::string Input::AsString() const { return std::string(AsStringView()); }
+std::string Input::AsString() const {
+  return std::string(reinterpret_cast<const char*>(data_.data()), data_.size());
+}
 
-bool operator==(Input lhs, Input rhs) { return Span(lhs) == Span(rhs); }
+std::string_view Input::AsStringView() const {
+  return std::string_view(reinterpret_cast<const char*>(data_.data()),
+                          data_.size());
+}
 
-bool operator!=(Input lhs, Input rhs) { return !(lhs == rhs); }
+bssl::Span<const uint8_t> Input::AsSpan() const {
+  return data_;
+}
 
-ByteReader::ByteReader(Input in) : data_(in) {}
+bool operator==(const Input& lhs, const Input& rhs) {
+  return lhs.Length() == rhs.Length() &&
+         std::equal(lhs.UnsafeData(), lhs.UnsafeData() + lhs.Length(),
+                    rhs.UnsafeData());
+}
 
-bool ByteReader::ReadByte(uint8_t *byte_p) {
-  if (!HasMore()) {
+bool operator!=(const Input& lhs, const Input& rhs) {
+  return !(lhs == rhs);
+}
+
+ByteReader::ByteReader(const Input& in)
+    : data_(in.UnsafeData()), len_(in.Length()) {
+}
+
+bool ByteReader::ReadByte(uint8_t* byte_p) {
+  if (!HasMore())
     return false;
-  }
-  *byte_p = data_[0];
+  *byte_p = *data_;
   Advance(1);
   return true;
 }
 
-bool ByteReader::ReadBytes(size_t len, Input *out) {
-  if (len > data_.size()) {
+bool ByteReader::ReadBytes(size_t len, Input* out) {
+  if (len > len_)
     return false;
-  }
-  *out = Input(data_.first(len));
+  *out = Input(data_, len);
   Advance(len);
   return true;
 }
 
 // Returns whether there is any more data to be read.
-bool ByteReader::HasMore() { return !data_.empty(); }
+bool ByteReader::HasMore() {
+  return len_ > 0;
+}
 
 void ByteReader::Advance(size_t len) {
-  BSSL_CHECK(len <= data_.size());
-  data_ = data_.subspan(len);
+  BSSL_CHECK(len <= len_);
+  data_ += len;
+  len_ -= len;
 }
 
 }  // namespace bssl::der

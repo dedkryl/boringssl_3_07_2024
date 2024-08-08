@@ -164,7 +164,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_RSA_WITH_3DES_EDE_CBC_SHA",
      SSL3_CK_RSA_DES_192_CBC3_SHA,
      SSL_kRSA,
-     SSL_aRSA_DECRYPT,
+     SSL_aRSA,
      SSL_3DES,
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
@@ -179,7 +179,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_RSA_WITH_AES_128_CBC_SHA",
      TLS1_CK_RSA_WITH_AES_128_SHA,
      SSL_kRSA,
-     SSL_aRSA_DECRYPT,
+     SSL_aRSA,
      SSL_AES128,
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
@@ -191,10 +191,41 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_RSA_WITH_AES_256_CBC_SHA",
      TLS1_CK_RSA_WITH_AES_256_SHA,
      SSL_kRSA,
-     SSL_aRSA_DECRYPT,
+     SSL_aRSA,
      SSL_AES256,
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
+    },
+
+    // curl-impersonate: Ciphers 3C, 3D were removed in
+    // https://boringssl-review.googlesource.com/c/boringssl/+/27944/
+    // but restored here to impersonate browsers with older ciphers. They are
+    // not expected to actually work; but just to be included in the TLS
+    // Client Hello.
+ 
+    // TLS v1.2 ciphersuites
+ 
+    // Cipher 3C
+    {
+     TLS1_TXT_RSA_WITH_AES_128_SHA256,
+     "TLS_RSA_WITH_AES_128_CBC_SHA256",
+     TLS1_CK_RSA_WITH_AES_128_SHA256,
+     SSL_kRSA,
+     SSL_aRSA,
+     SSL_AES128,
+     SSL_SHA256,
+     SSL_HANDSHAKE_MAC_SHA256,
+    },
+    // Cipher 3D
+    {
+     TLS1_TXT_RSA_WITH_AES_256_SHA256,
+     "TLS_RSA_WITH_AES_256_CBC_SHA256",
+     TLS1_CK_RSA_WITH_AES_256_SHA256,
+     SSL_kRSA,
+     SSL_aRSA,
+     SSL_AES256,
+     SSL_SHA256,
+     SSL_HANDSHAKE_MAC_SHA256,
     },
 
     // PSK cipher suites.
@@ -231,7 +262,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_RSA_WITH_AES_128_GCM_SHA256",
      TLS1_CK_RSA_WITH_AES_128_GCM_SHA256,
      SSL_kRSA,
-     SSL_aRSA_DECRYPT,
+     SSL_aRSA,
      SSL_AES128GCM,
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA256,
@@ -243,7 +274,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_RSA_WITH_AES_256_GCM_SHA384",
      TLS1_CK_RSA_WITH_AES_256_GCM_SHA384,
      SSL_kRSA,
-     SSL_aRSA_DECRYPT,
+     SSL_aRSA,
      SSL_AES256GCM,
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA384,
@@ -287,6 +318,23 @@ static constexpr SSL_CIPHER kCiphers[] = {
       SSL_HANDSHAKE_MAC_SHA256,
     },
 
+    // curl-impersonate: Cipher C008 was missing from BoringSSL,
+    // probably because it is weak. Add it back from OpenSSL (ssl/s3_lib.c)
+    // where it is called ECDHE-ECDSA-DES-CBC3-SHA.
+    // It's not supposed to really work but just appear in the TLS client hello.
+ 
+    // Cipher C008
+    {
+     "ECDHE-ECDSA-DES-CBC3-SHA",
+     "TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA",
+     0x0300C008,
+     SSL_kECDHE,
+     SSL_aECDSA,
+     SSL_3DES,
+     SSL_SHA1,
+     SSL_HANDSHAKE_MAC_DEFAULT,
+    },
+
     // Cipher C009
     {
      TLS1_TXT_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
@@ -311,13 +359,28 @@ static constexpr SSL_CIPHER kCiphers[] = {
      SSL_HANDSHAKE_MAC_DEFAULT,
     },
 
+    // curl-impersonate: Cipher C012 was missing from BoringSSL,
+    // probably because it is weak. Add it back from OpenSSL (ssl/s3_lib.c)
+    // where it is called ECDHE-RSA-DES-CBC3-SHA
+    // It's not supposed to really work but just appear in the TLS client hello.
+    {
+     "ECDHE-RSA-DES-CBC3-SHA",
+     "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA",
+     0x0300C012,
+     SSL_kECDHE,
+     SSL_aRSA,
+     SSL_3DES,
+     SSL_SHA1,
+     SSL_HANDSHAKE_MAC_DEFAULT,
+    },
+
     // Cipher C013
     {
      TLS1_TXT_ECDHE_RSA_WITH_AES_128_CBC_SHA,
      "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
      TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_AES128,
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
@@ -329,10 +392,41 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
      TLS1_CK_ECDHE_RSA_WITH_AES_256_CBC_SHA,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_AES256,
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
+    },
+
+    // curl-impersonate: Ciphers C023, C024, C028 were removed in
+    // https://boringssl-review.googlesource.com/c/boringssl/+/27944/
+    // but restored here to impersonate browsers with older ciphers. They are
+    // not expected to actually work; but just to be included in the TLS
+    // Client Hello.
+
+    // HMAC based TLS v1.2 ciphersuites from RFC5289
+
+    // Cipher C023
+    {
+     TLS1_TXT_ECDHE_ECDSA_WITH_AES_128_SHA256,
+     "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+     TLS1_CK_ECDHE_ECDSA_WITH_AES_128_SHA256,
+     SSL_kECDHE,
+     SSL_aECDSA,
+     SSL_AES128,
+     SSL_SHA256,
+     SSL_HANDSHAKE_MAC_SHA256,
+    },
+    // Cipher C024
+    {
+     TLS1_TXT_ECDHE_ECDSA_WITH_AES_256_SHA384,
+     "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+     TLS1_CK_ECDHE_ECDSA_WITH_AES_256_SHA384,
+     SSL_kECDHE,
+     SSL_aECDSA,
+     SSL_AES256,
+     SSL_SHA384,
+     SSL_HANDSHAKE_MAC_SHA384,
     },
 
     // Cipher C027
@@ -341,10 +435,22 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
      TLS1_CK_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_AES128,
      SSL_SHA256,
      SSL_HANDSHAKE_MAC_SHA256,
+    },
+
+    // Cipher C028
+    {
+     TLS1_TXT_ECDHE_RSA_WITH_AES_256_SHA384,
+     "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+     TLS1_CK_ECDHE_RSA_WITH_AES_256_SHA384,
+     SSL_kECDHE,
+     SSL_aRSA,
+     SSL_AES256,
+     SSL_SHA384,
+     SSL_HANDSHAKE_MAC_SHA384,
     },
 
     // GCM based TLS v1.2 ciphersuites from RFC 5289
@@ -379,7 +485,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
      TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_AES128GCM,
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA256,
@@ -391,7 +497,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
      TLS1_CK_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_AES256GCM,
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA384,
@@ -431,7 +537,7 @@ static constexpr SSL_CIPHER kCiphers[] = {
      "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
      TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
      SSL_kECDHE,
-     SSL_aRSA_SIGN,
+     SSL_aRSA,
      SSL_CHACHA20POLY1305,
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA256,
@@ -528,7 +634,7 @@ static const CIPHER_ALIAS kCipherAliases[] = {
     {"kPSK", SSL_kPSK, ~0u, ~0u, ~0u, 0},
 
     // server authentication aliases
-    {"aRSA", ~0u, SSL_aRSA_SIGN | SSL_aRSA_DECRYPT, ~0u, ~0u, 0},
+    {"aRSA", ~0u, SSL_aRSA, ~0u, ~0u, 0},
     {"aECDSA", ~0u, SSL_aECDSA, ~0u, ~0u, 0},
     {"ECDSA", ~0u, SSL_aECDSA, ~0u, ~0u, 0},
     {"aPSK", ~0u, SSL_aPSK, ~0u, ~0u, 0},
@@ -536,7 +642,7 @@ static const CIPHER_ALIAS kCipherAliases[] = {
     // aliases combining key exchange and server authentication
     {"ECDHE", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
     {"EECDH", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
-    {"RSA", SSL_kRSA, SSL_aRSA_SIGN | SSL_aRSA_DECRYPT, ~0u, ~0u, 0},
+    {"RSA", SSL_kRSA, SSL_aRSA, ~0u, ~0u, 0},
     {"PSK", SSL_kPSK, SSL_aPSK, ~0u, ~0u, 0},
 
     // symmetric encryption aliases
@@ -553,6 +659,11 @@ static const CIPHER_ALIAS kCipherAliases[] = {
 
     // MAC aliases
     {"SHA1", ~0u, ~0u, ~0u, SSL_SHA1, 0},
+    // curl-impersonate:
+    // Removed in https://boringssl-review.googlesource.com/c/boringssl/+/27944/
+    // but restored to impersonate browsers with older ciphers.
+    {"SHA256", ~0u, ~0u, ~0u, SSL_SHA256, 0},
+    {"SHA384", ~0u, ~0u, ~0u, SSL_SHA384, 0},
     {"SHA", ~0u, ~0u, ~0u, SSL_SHA1, 0},
 
     // Legacy protocol minimum version aliases. "TLSv1" is intentionally the
@@ -1168,6 +1279,14 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
       TLS1_CK_RSA_WITH_AES_256_SHA & 0xffff,
       TLS1_CK_PSK_WITH_AES_256_CBC_SHA & 0xffff,
       SSL3_CK_RSA_DES_192_CBC3_SHA & 0xffff,
+      // curl-impersonate: add legacy cipehrs.
+      TLS1_CK_RSA_WITH_AES_128_SHA256 & 0xffff,
+      TLS1_CK_RSA_WITH_AES_256_SHA256 & 0xffff,
+      0x0300C008 & 0xffff,
+      0x0300C012 & 0xffff,
+      TLS1_CK_ECDHE_ECDSA_WITH_AES_128_SHA256 & 0xffff,
+      TLS1_CK_ECDHE_ECDSA_WITH_AES_256_SHA384 & 0xffff,
+      TLS1_CK_ECDHE_RSA_WITH_AES_256_SHA384 & 0xffff,
   };
 
   // Set up a linked list of ciphers.
@@ -1275,14 +1394,14 @@ bool ssl_create_cipher_list(UniquePtr<SSLCipherPreferenceList> *out_cipher_list,
   return true;
 }
 
-uint32_t ssl_cipher_auth_mask_for_key(const EVP_PKEY *key, bool sign_ok) {
+uint32_t ssl_cipher_auth_mask_for_key(const EVP_PKEY *key) {
   switch (EVP_PKEY_id(key)) {
     case EVP_PKEY_RSA:
-      return sign_ok ? (SSL_aRSA_SIGN | SSL_aRSA_DECRYPT) : SSL_aRSA_DECRYPT;
+      return SSL_aRSA;
     case EVP_PKEY_EC:
     case EVP_PKEY_ED25519:
       // Ed25519 keys in TLS 1.2 repurpose the ECDSA ciphers.
-      return sign_ok ? SSL_aECDSA : 0;
+      return SSL_aECDSA;
     default:
       return 0;
   }
@@ -1423,8 +1542,7 @@ int SSL_CIPHER_get_kx_nid(const SSL_CIPHER *cipher) {
 
 int SSL_CIPHER_get_auth_nid(const SSL_CIPHER *cipher) {
   switch (cipher->algorithm_auth) {
-    case SSL_aRSA_DECRYPT:
-    case SSL_aRSA_SIGN:
+    case SSL_aRSA:
       return NID_auth_rsa;
     case SSL_aECDSA:
       return NID_auth_ecdsa;
@@ -1512,7 +1630,7 @@ const char *SSL_CIPHER_get_kx_name(const SSL_CIPHER *cipher) {
       switch (cipher->algorithm_auth) {
         case SSL_aECDSA:
           return "ECDHE_ECDSA";
-        case SSL_aRSA_SIGN:
+        case SSL_aRSA:
           return "ECDHE_RSA";
         case SSL_aPSK:
           return "ECDHE_PSK";
@@ -1604,8 +1722,7 @@ const char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf,
   }
 
   switch (alg_auth) {
-    case SSL_aRSA_DECRYPT:
-    case SSL_aRSA_SIGN:
+    case SSL_aRSA:
       au = "RSA";
       break;
 

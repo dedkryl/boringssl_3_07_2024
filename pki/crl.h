@@ -5,14 +5,13 @@
 #ifndef BSSL_PKI_CRL_H_
 #define BSSL_PKI_CRL_H_
 
-#include <optional>
-
-#include <openssl/base.h>
+#include "fillins/openssl_util.h"
 
 #include "general_names.h"
+#include "parsed_certificate.h"
 #include "input.h"
 #include "parse_values.h"
-#include "parsed_certificate.h"
+#include <optional>
 
 namespace bssl {
 
@@ -43,9 +42,10 @@ enum class CRLRevocationStatus {
 //         signatureAlgorithm   AlgorithmIdentifier,
 //         signatureValue       BIT STRING  }
 [[nodiscard]] OPENSSL_EXPORT bool ParseCrlCertificateList(
-    der::Input crl_tlv, der::Input *out_tbs_cert_list_tlv,
-    der::Input *out_signature_algorithm_tlv,
-    der::BitString *out_signature_value);
+    const der::Input& crl_tlv,
+    der::Input* out_tbs_cert_list_tlv,
+    der::Input* out_signature_algorithm_tlv,
+    der::BitString* out_signature_value);
 
 // Parses a DER-encoded "TBSCertList" as specified by RFC 5280 Section 5.1.
 // Returns true on success and sets the results in |out|.
@@ -77,7 +77,8 @@ enum class CRLRevocationStatus {
 //                                       -- if present, version MUST be v2
 //                                   }
 [[nodiscard]] OPENSSL_EXPORT bool ParseCrlTbsCertList(
-    der::Input tbs_tlv, ParsedCrlTbsCertList *out);
+    const der::Input& tbs_tlv,
+    ParsedCrlTbsCertList* out);
 
 // Represents a CRL "Version" from RFC 5280. TBSCertList reuses the same
 // Version definition from TBSCertificate, however only v1(not present) and
@@ -180,13 +181,14 @@ enum class ContainedCertsType {
 //     indirectCRL                [4] BOOLEAN DEFAULT FALSE,
 //     onlyContainsAttributeCerts [5] BOOLEAN DEFAULT FALSE }
 [[nodiscard]] OPENSSL_EXPORT bool ParseIssuingDistributionPoint(
-    der::Input extension_value,
-    std::unique_ptr<GeneralNames> *out_distribution_point_names,
-    ContainedCertsType *out_only_contains_cert_type);
+    const der::Input& extension_value,
+    std::unique_ptr<GeneralNames>* out_distribution_point_names,
+    ContainedCertsType* out_only_contains_cert_type);
 
 OPENSSL_EXPORT CRLRevocationStatus
-GetCRLStatusForCert(der::Input cert_serial, CrlVersion crl_version,
-                    const std::optional<der::Input> &revoked_certificates_tlv);
+GetCRLStatusForCert(const der::Input& cert_serial,
+                    CrlVersion crl_version,
+                    const std::optional<der::Input>& revoked_certificates_tlv);
 
 // Checks the revocation status of the certificate |cert| by using the
 // DER-encoded |raw_crl|. |cert| must already have passed certificate path
@@ -210,11 +212,14 @@ GetCRLStatusForCert(der::Input cert_serial, CrlVersion crl_version,
 //        implemented as time since the |thisUpdate| field in the CRL
 //        TBSCertList. Responses older than |max_age_seconds| will be
 //        considered invalid.
-[[nodiscard]] OPENSSL_EXPORT CRLRevocationStatus CheckCRL(
-    std::string_view raw_crl, const ParsedCertificateList &valid_chain,
-    size_t target_cert_index, const ParsedDistributionPoint &cert_dp,
-    int64_t verify_time_epoch_seconds, std::optional<int64_t> max_age_seconds);
+[[nodiscard]] OPENSSL_EXPORT CRLRevocationStatus
+CheckCRL(std::string_view raw_crl,
+         const ParsedCertificateList& valid_chain,
+         size_t target_cert_index,
+         const ParsedDistributionPoint& cert_dp,
+         int64_t verify_time_epoch_seconds,
+         std::optional<int64_t> max_age_seconds);
 
-}  // namespace bssl
+}  // namespace net
 
 #endif  // BSSL_PKI_CRL_H_

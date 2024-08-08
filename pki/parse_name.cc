@@ -6,11 +6,10 @@
 
 #include <cassert>
 
+#include "string_util.h"
+#include "parse_values.h"
 #include <openssl/bytestring.h>
 #include <openssl/mem.h>
-
-#include "parse_values.h"
-#include "string_util.h"
 
 namespace bssl {
 
@@ -20,30 +19,29 @@ namespace {
 // string on error.
 std::string OidToString(der::Input oid) {
   CBS cbs;
-  CBS_init(&cbs, oid.data(), oid.size());
+  CBS_init(&cbs, oid.UnsafeData(), oid.Length());
   bssl::UniquePtr<char> text(CBS_asn1_oid_to_text(&cbs));
-  if (!text) {
+  if (!text)
     return std::string();
-  }
   return text.get();
 }
 
 }  // namespace
 
-bool X509NameAttribute::ValueAsString(std::string *out) const {
+bool X509NameAttribute::ValueAsString(std::string* out) const {
   switch (value_tag) {
-    case CBS_ASN1_T61STRING:
+    case der::kTeletexString:
       return der::ParseTeletexStringAsLatin1(value, out);
-    case CBS_ASN1_IA5STRING:
+    case der::kIA5String:
       return der::ParseIA5String(value, out);
-    case CBS_ASN1_PRINTABLESTRING:
+    case der::kPrintableString:
       return der::ParsePrintableString(value, out);
-    case CBS_ASN1_UTF8STRING:
-      *out = BytesAsStringView(value);
+    case der::kUtf8String:
+      *out = value.AsString();
       return true;
-    case CBS_ASN1_UNIVERSALSTRING:
+    case der::kUniversalString:
       return der::ParseUniversalString(value, out);
-    case CBS_ASN1_BMPSTRING:
+    case der::kBmpString:
       return der::ParseBmpString(value, out);
     default:
       return false;
@@ -51,26 +49,27 @@ bool X509NameAttribute::ValueAsString(std::string *out) const {
 }
 
 bool X509NameAttribute::ValueAsStringWithUnsafeOptions(
-    PrintableStringHandling printable_string_handling, std::string *out) const {
+    PrintableStringHandling printable_string_handling,
+    std::string* out) const {
   if (printable_string_handling == PrintableStringHandling::kAsUTF8Hack &&
-      value_tag == CBS_ASN1_PRINTABLESTRING) {
-    *out = BytesAsStringView(value);
+      value_tag == der::kPrintableString) {
+    *out = value.AsString();
     return true;
   }
   return ValueAsString(out);
 }
 
-bool X509NameAttribute::ValueAsStringUnsafe(std::string *out) const {
+bool X509NameAttribute::ValueAsStringUnsafe(std::string* out) const {
   switch (value_tag) {
-    case CBS_ASN1_IA5STRING:
-    case CBS_ASN1_PRINTABLESTRING:
-    case CBS_ASN1_T61STRING:
-    case CBS_ASN1_UTF8STRING:
-      *out = BytesAsStringView(value);
+    case der::kIA5String:
+    case der::kPrintableString:
+    case der::kTeletexString:
+    case der::kUtf8String:
+      *out = value.AsString();
       return true;
-    case CBS_ASN1_UNIVERSALSTRING:
+    case der::kUniversalString:
       return der::ParseUniversalString(value, out);
-    case CBS_ASN1_BMPSTRING:
+    case der::kBmpString:
       return der::ParseBmpString(value, out);
     default:
       assert(0);  // NOTREACHED
@@ -78,7 +77,7 @@ bool X509NameAttribute::ValueAsStringUnsafe(std::string *out) const {
   }
 }
 
-bool X509NameAttribute::AsRFC2253String(std::string *out) const {
+bool X509NameAttribute::AsRFC2253String(std::string* out) const {
   std::string type_string;
   std::string value_string;
   // TODO(mattm): Add streetAddress and domainComponent here?
@@ -102,21 +101,20 @@ bool X509NameAttribute::AsRFC2253String(std::string *out) const {
     type_string = "emailAddress";
   } else {
     type_string = OidToString(type);
-    if (type_string.empty()) {
+    if (type_string.empty())
       return false;
-    }
-    value_string = "#" + bssl::string_util::HexEncode(value);
+    value_string =
+        "#" + bssl::string_util::HexEncode(value.UnsafeData(), value.Length());
   }
 
   if (value_string.empty()) {
     std::string unescaped;
-    if (!ValueAsStringUnsafe(&unescaped)) {
+    if (!ValueAsStringUnsafe(&unescaped))
       return false;
-    }
 
     bool nonprintable = false;
     for (unsigned int i = 0; i < unescaped.length(); ++i) {
-      uint8_t c = static_cast<uint8_t>(unescaped[i]);
+      unsigned char c = static_cast<unsigned char>(unescaped[i]);
       if (i == 0 && c == '#') {
         value_string += "\\#";
       } else if (i == 0 && c == ' ') {
@@ -129,7 +127,11 @@ bool X509NameAttribute::AsRFC2253String(std::string *out) const {
         value_string += c;
       } else if (c < 32 || c > 126) {
         nonprintable = true;
-        value_string += "\\" + bssl::string_util::HexEncode(Span(&c, 1));
+        std::string h;
+        h += c;
+        value_string +=
+            "\\" + bssl::string_util::HexEncode(
+                       reinterpret_cast<const uint8_t*>(h.data()), h.length());
       } else {
         value_string += c;
       }
@@ -137,39 +139,35 @@ bool X509NameAttribute::AsRFC2253String(std::string *out) const {
 
     // If we have non-printable characters in a TeletexString, we hex encode
     // since we don't handle Teletex control codes.
-    if (nonprintable && value_tag == CBS_ASN1_T61STRING) {
-      value_string = "#" + bssl::string_util::HexEncode(value);
-    }
+    if (nonprintable && value_tag == der::kTeletexString)
+      value_string =
+          "#" + bssl::string_util::HexEncode(value.UnsafeData(), value.Length());
   }
 
   *out = type_string + "=" + value_string;
   return true;
 }
 
-bool ReadRdn(der::Parser *parser, RelativeDistinguishedName *out) {
+bool ReadRdn(der::Parser* parser, RelativeDistinguishedName* out) {
   while (parser->HasMore()) {
     der::Parser attr_type_and_value;
-    if (!parser->ReadSequence(&attr_type_and_value)) {
+    if (!parser->ReadSequence(&attr_type_and_value))
       return false;
-    }
     // Read the attribute type, which must be an OBJECT IDENTIFIER.
     der::Input type;
-    if (!attr_type_and_value.ReadTag(CBS_ASN1_OBJECT, &type)) {
+    if (!attr_type_and_value.ReadTag(der::kOid, &type))
       return false;
-    }
 
     // Read the attribute value.
-    CBS_ASN1_TAG tag;
+    der::Tag tag;
     der::Input value;
-    if (!attr_type_and_value.ReadTagAndValue(&tag, &value)) {
+    if (!attr_type_and_value.ReadTagAndValue(&tag, &value))
       return false;
-    }
 
     // There should be no more elements in the sequence after reading the
     // attribute type and value.
-    if (attr_type_and_value.HasMore()) {
+    if (attr_type_and_value.HasMore())
       return false;
-    }
 
     out->push_back(X509NameAttribute(type, tag, value));
   }
@@ -179,51 +177,45 @@ bool ReadRdn(der::Parser *parser, RelativeDistinguishedName *out) {
   return out->size() != 0;
 }
 
-bool ParseName(der::Input name_tlv, RDNSequence *out) {
+bool ParseName(const der::Input& name_tlv, RDNSequence* out) {
   der::Parser name_parser(name_tlv);
   der::Input name_value;
-  if (!name_parser.ReadTag(CBS_ASN1_SEQUENCE, &name_value)) {
+  if (!name_parser.ReadTag(der::kSequence, &name_value))
     return false;
-  }
   return ParseNameValue(name_value, out);
 }
 
-bool ParseNameValue(der::Input name_value, RDNSequence *out) {
+bool ParseNameValue(const der::Input& name_value, RDNSequence* out) {
   der::Parser rdn_sequence_parser(name_value);
   while (rdn_sequence_parser.HasMore()) {
     der::Parser rdn_parser;
-    if (!rdn_sequence_parser.ReadConstructed(CBS_ASN1_SET, &rdn_parser)) {
+    if (!rdn_sequence_parser.ReadConstructed(der::kSet, &rdn_parser))
       return false;
-    }
     RelativeDistinguishedName type_and_values;
-    if (!ReadRdn(&rdn_parser, &type_and_values)) {
+    if (!ReadRdn(&rdn_parser, &type_and_values))
       return false;
-    }
     out->push_back(type_and_values);
   }
 
   return true;
 }
 
-bool ConvertToRFC2253(const RDNSequence &rdn_sequence, std::string *out) {
+bool ConvertToRFC2253(const RDNSequence& rdn_sequence, std::string* out) {
   std::string rdns_string;
   size_t size = rdn_sequence.size();
   for (size_t i = 0; i < size; ++i) {
     RelativeDistinguishedName rdn = rdn_sequence[size - i - 1];
     std::string rdn_string;
-    for (const auto &atv : rdn) {
-      if (!rdn_string.empty()) {
+    for (const auto& atv : rdn) {
+      if (!rdn_string.empty())
         rdn_string += "+";
-      }
       std::string atv_string;
-      if (!atv.AsRFC2253String(&atv_string)) {
+      if (!atv.AsRFC2253String(&atv_string))
         return false;
-      }
       rdn_string += atv_string;
     }
-    if (!rdns_string.empty()) {
+    if (!rdns_string.empty())
       rdns_string += ",";
-    }
     rdns_string += rdn_string;
   }
 
@@ -231,4 +223,4 @@ bool ConvertToRFC2253(const RDNSequence &rdn_sequence, std::string *out) {
   return true;
 }
 
-}  // namespace bssl
+}  // namespace net

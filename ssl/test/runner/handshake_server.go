@@ -36,7 +36,7 @@ type serverHandshakeState struct {
 	finishedHash    finishedHash
 	masterSecret    []byte
 	certsFromClient [][]byte
-	cert            *Credential
+	cert            *Certificate
 	finishedBytes   []byte
 	echHPKEContext  *hpke.Context
 	echConfigID     uint8
@@ -449,7 +449,7 @@ func (hs *serverHandshakeState) readClientHello() error {
 
 func applyBugsToClientHello(clientHello *clientHelloMsg, config *Config) {
 	if config.Bugs.IgnorePeerSignatureAlgorithmPreferences {
-		clientHello.signatureAlgorithms = config.Credential.signatureAlgorithms()
+		clientHello.signatureAlgorithms = config.signSignatureAlgorithms()
 	}
 	if config.Bugs.IgnorePeerCurvePreferences {
 		clientHello.supportedCurves = config.curvePreferences()
@@ -1040,7 +1040,7 @@ ResendHelloRetryRequest:
 	}
 	c.flushHandshake()
 
-	if !c.config.Bugs.SkipChangeCipherSpec && !sendHelloRetryRequest && !c.isDTLS {
+	if !c.config.Bugs.SkipChangeCipherSpec && !sendHelloRetryRequest {
 		c.writeRecord(recordTypeChangeCipherSpec, []byte{1})
 	}
 
@@ -1168,16 +1168,17 @@ ResendHelloRetryRequest:
 		}
 
 		// Determine the hash to sign.
+		privKey := hs.cert.PrivateKey
+
 		var err error
-		certVerify.signatureAlgorithm, err = selectSignatureAlgorithm(c.isClient, c.vers, hs.cert, config, hs.clientHello.signatureAlgorithms)
+		certVerify.signatureAlgorithm, err = selectSignatureAlgorithm(c.vers, privKey, config, hs.clientHello.signatureAlgorithms)
 		if err != nil {
 			c.sendAlert(alertInternalError)
 			return err
 		}
 
-		privKey := hs.cert.PrivateKey
 		input := hs.finishedHash.certificateVerifyInput(serverCertificateVerifyContextTLS13)
-		certVerify.signature, err = signMessage(c.isClient, c.vers, privKey, c.config, certVerify.signatureAlgorithm, input)
+		certVerify.signature, err = signMessage(c.vers, privKey, c.config, certVerify.signatureAlgorithm, input)
 		if err != nil {
 			c.sendAlert(alertInternalError)
 			return err
@@ -1362,7 +1363,7 @@ ResendHelloRetryRequest:
 
 			c.peerSignatureAlgorithm = certVerify.signatureAlgorithm
 			input := hs.finishedHash.certificateVerifyInput(clientCertificateVerifyContextTLS13)
-			if err := verifyMessage(c.isClient, c.vers, pub, config, certVerify.signatureAlgorithm, input, certVerify.signature); err != nil {
+			if err := verifyMessage(c.vers, pub, config, certVerify.signatureAlgorithm, input, certVerify.signature); err != nil {
 				c.sendAlert(alertBadCertificate)
 				return err
 			}
@@ -1420,8 +1421,7 @@ ResendHelloRetryRequest:
 
 	// TODO(davidben): Allow configuring the number of tickets sent for
 	// testing.
-	// TODO(nharper): Add support for post-handshake messages in DTLS 1.3.
-	if !c.config.SessionTicketsDisabled && foundKEMode && !c.isDTLS {
+	if !c.config.SessionTicketsDisabled && foundKEMode {
 		ticketCount := 2
 		for i := 0; i < ticketCount; i++ {
 			c.SendNewSessionTicket([]byte{byte(i)})
@@ -1587,11 +1587,14 @@ func (hs *serverHandshakeState) processClientExtensions(serverExtensions *server
 	if len(hs.clientHello.serverName) > 0 {
 		c.serverName = hs.clientHello.serverName
 	}
-	if config.Credential == nil {
+	if len(config.Certificates) == 0 {
 		c.sendAlert(alertInternalError)
 		return errors.New("tls: no certificates configured")
 	}
-	hs.cert = config.Credential
+	hs.cert = &config.Certificates[0]
+	if len(hs.clientHello.serverName) > 0 {
+		hs.cert = config.getCertificateForName(hs.clientHello.serverName)
+	}
 	if expected := c.config.Bugs.ExpectServerName; expected != "" && expected != hs.clientHello.serverName {
 		return fmt.Errorf("tls: unexpected server name: wanted %q, got %q", expected, hs.clientHello.serverName)
 	}
@@ -1665,7 +1668,11 @@ func (hs *serverHandshakeState) processClientExtensions(serverExtensions *server
 
 	if c.vers < VersionTLS13 || config.Bugs.NegotiateNPNAtAllVersions {
 		if len(hs.clientHello.alpnProtocols) == 0 || c.config.Bugs.NegotiateALPNAndNPN {
-			if hs.clientHello.nextProtoNeg && (len(config.NextProtos) > 0 || config.NegotiateNPNWithNoProtos) {
+			// Although sending an empty NPN extension is reasonable, Firefox has
+			// had a bug around this. Best to send nothing at all if
+			// config.NextProtos is empty. See
+			// https://code.google.com/p/go/issues/detail?id=5445.
+			if hs.clientHello.nextProtoNeg && len(config.NextProtos) > 0 {
 				serverExtensions.nextProtoNeg = true
 				serverExtensions.nextProtos = config.NextProtos
 				serverExtensions.npnAfterAlpn = config.Bugs.SwapNPNAndALPN
@@ -1966,7 +1973,10 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 			certificateTypes: config.ClientCertificateTypes,
 		}
 		if certReq.certificateTypes == nil {
-			certReq.certificateTypes = []byte{CertTypeRSASign, CertTypeECDSASign}
+			certReq.certificateTypes = []byte{
+				byte(CertTypeRSASign),
+				byte(CertTypeECDSASign),
+			}
 		}
 		if c.vers >= VersionTLS12 {
 			certReq.hasSignatureAlgorithm = true
@@ -2094,7 +2104,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 			c.peerSignatureAlgorithm = sigAlg
 		}
 
-		if err := verifyMessage(c.isClient, c.vers, pub, c.config, sigAlg, hs.finishedHash.buffer, certVerify.signature); err != nil {
+		if err := verifyMessage(c.vers, pub, c.config, sigAlg, hs.finishedHash.buffer, certVerify.signature); err != nil {
 			c.sendAlert(alertBadCertificate)
 			return errors.New("could not validate signature of connection nonces: " + err.Error())
 		}

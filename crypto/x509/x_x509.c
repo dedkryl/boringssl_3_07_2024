@@ -65,6 +65,7 @@
 #include <openssl/pool.h>
 #include <openssl/thread.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "../asn1/internal.h"
 #include "../bytestring/internal.h"
@@ -380,7 +381,12 @@ int X509_up_ref(X509 *x) {
 int X509_get_ex_new_index(long argl, void *argp, CRYPTO_EX_unused *unused,
                           CRYPTO_EX_dup *dup_unused,
                           CRYPTO_EX_free *free_func) {
-  return CRYPTO_get_ex_new_index_ex(&g_ex_data_class, argl, argp, free_func);
+  int index;
+  if (!CRYPTO_get_ex_new_index(&g_ex_data_class, &index, argl, argp,
+                               free_func)) {
+    return -1;
+  }
+  return index;
 }
 
 int X509_set_ex_data(X509 *r, int idx, void *arg) {

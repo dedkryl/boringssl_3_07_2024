@@ -7,15 +7,15 @@
 #include <memory>
 #include <set>
 
-#include <gtest/gtest.h>
-#include <optional>
 #include "cert_errors.h"
-#include "input.h"
 #include "mock_signature_verify_cache.h"
-#include "parse_values.h"
-#include "parser.h"
 #include "signature_algorithm.h"
 #include "test_helpers.h"
+#include "input.h"
+#include "parse_values.h"
+#include "parser.h"
+#include <gtest/gtest.h>
+#include <optional>
 
 namespace bssl {
 
@@ -34,8 +34,9 @@ enum VerifyResult {
 //
 // If expected_result was FAILURE then the test will only succeed if
 // VerifySignedData() returns false.
-void RunTestCase(VerifyResult expected_result, const char *file_name,
-                 SignatureVerifyCache *cache) {
+void RunTestCase(VerifyResult expected_result,
+                 const char* file_name,
+                 SignatureVerifyCache* cache) {
   std::string path =
       std::string("testdata/verify_signed_data_unittest/") + file_name;
 
@@ -72,7 +73,7 @@ void RunTestCase(VerifyResult expected_result, const char *file_name,
   EXPECT_EQ(expected_result_bool, result);
 }
 
-void RunTestCase(VerifyResult expected_result, const char *file_name) {
+void RunTestCase(VerifyResult expected_result, const char* file_name) {
   RunTestCase(expected_result, file_name, /*cache=*/nullptr);
 }
 
@@ -238,4 +239,4 @@ TEST(VerifySignedDataTestWithCache, TestVerifyCache) {
 
 }  // namespace
 
-}  // namespace bssl
+}  // namespace net
