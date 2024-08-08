@@ -1,4 +1,4 @@
-# BoringSSL
+# BoringSSL for for curl-impersionate_3_07_2024
 
 BoringSSL is a fork of OpenSSL that is designed to meet Google's needs.
 
